@@ -44,11 +44,12 @@ test('keyboard movement, actions, pause freeze, rules and restart',()=>{
 test('requested split keyboard controls move and trigger separate players',()=>{
   pads=[];cards[0].click();action('开始');frames(3);const start=snapshot().fighters.map(p=>({x:p.x,y:p.y}));
   key('KeyW');key('ArrowRight');frames(.25);key('KeyW','keyup');key('ArrowRight','keyup');assert(snapshot().fighters[0].y<start[0].y);assert(snapshot().fighters[1].x>start[1].x);
-  const p1=snapshot().fighters[0],p2=snapshot().fighters[1];key('Digit2');frames(.08);key('Digit2','keyup');key('Digit8');frames(.08);key('Digit8','keyup');assert(p1.dashCd>0);assert(p2.dashCd>0);
-  key('Digit3');frames(.08);key('Digit3','keyup');key('Digit9');frames(.08);key('Digit9','keyup');assert(p1.skillCd>0);assert(p2.skillCd>0);
+  key('Digit2');frames(.08);key('Digit2','keyup');key('Digit8');frames(.08);key('Digit8','keyup');assert(snapshot().fighters[0].dashCd>0);assert(snapshot().fighters[1].dashCd>0);
+  key('Digit3');frames(.08);key('Digit3','keyup');key('Digit9');frames(.08);key('Digit9','keyup');assert(snapshot().fighters[0].skillCd>0);assert(snapshot().fighters[1].skillCd>0);
   key('Escape');action('返回菜单');
 });
 test('dual Xbox mapping, exclusive assignment and deadzone',()=>{
+  cards[0].click();action('开始');frames(3);
   pads=[pad(0),pad(1)];frames(.1);assert(snapshot().devices[0].includes('手柄 1'));assert(snapshot().devices[1].includes('手柄 2'));const x=snapshot().fighters[0].x;pads[0].axes[0]=.1;frames(.2);assert.equal(snapshot().fighters[0].x,x);pads[0].axes[0]=1;pads[1].axes[0]=-1;frames(.3);assert(snapshot().fighters[0].x>x);assert(snapshot().fighters[1].x<920);pads.forEach(p=>p.axes=[0,0]);
   el('device0').value='pad:1';el('device0').dispatchEvent(new sandbox.Event('change'));assert(snapshot().devices[0].includes('手柄 2'));el('device1').value='pad:1';el('device1').dispatchEvent(new sandbox.Event('change'));assert(snapshot().devices[0].includes('键盘'));assert(snapshot().devices[1].includes('手柄 2'));
   el('device0').value='auto';el('device0').dispatchEvent(new sandbox.Event('change'));el('device1').value='auto';el('device1').dispatchEvent(new sandbox.Event('change'));frames(.1);
@@ -76,3 +77,6 @@ test('canvas renders menu poster and every battle mode without drawing errors',(
   for(const card of cards){card.click();action('开始');frames(4);fs.writeFileSync(`work/${card.dataset.mode}.png`,el('game').canvas.toBuffer('image/png'));key('Escape');action('返回菜单');}
 });
 console.log('\n10 controller / rendering checks passed (local DOM harness; not a browser or physical gamepad test).');
+
+
+

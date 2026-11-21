@@ -26,6 +26,7 @@
   let audioOn = false, audioContext = null, soundCooldown = 0, previousFocus = null;
   const keys = new Set(), selections = ['auto', 'auto'], selectedPads = [null, null], autoBindings = [null, null], padPrevious = new Map();
   let padSignature = '', connectedBefore = new Set(), navCooldown = 0, focusIndex = 0;
+  const padNav = new Map(); // index -> { cooldown, focusIndex } 每只手柄独立导航焦点
   const keymaps = [
     { left: ['KeyA'], right: ['KeyD'], up: ['KeyW'], down: ['KeyS', 'KeyZ'], attack: ['Digit1', 'Numpad1', 'KeyJ'], dash: ['Digit2', 'Numpad2', 'KeyK'], skill: ['Digit3', 'Numpad3', 'KeyL'], link: ['Digit4', 'Numpad4', 'KeyI'] },
     { left: ['ArrowLeft'], right: ['ArrowRight'], up: ['ArrowUp'], down: ['ArrowDown'], attack: ['Digit7', 'Numpad7', 'Digit1', 'Numpad1'], dash: ['Digit8', 'Numpad8', 'Digit2', 'Numpad2'], skill: ['Digit9', 'Numpad9', 'Digit3', 'Numpad3'], link: ['Digit0', 'Numpad0', 'Digit4', 'Numpad4'] }
@@ -130,6 +131,8 @@
   document.addEventListener('visibilitychange', () => { if (document.hidden && screen === 'game' && !modalKind) pauseMenu('页面已切到后台，战斗已暂停。'); });
   const getPads = () => { try { return Array.from(navigator.getGamepads?.() || []).filter(p => p?.connected); } catch (_) { return []; } };
   const pressed = (pad, i) => !!pad?.buttons[i]?.pressed;
+  // 标准映射按钮索引：0=A 1=B 2=X 3=Y 4=LB 5=RB 6=LT 7=RT 8=Back 9=Start 10=L3 11=R3 12=上 13=下 14=左 15=右
+  const isStandard = pad => pad?.mapping === 'standard';
   function rebuildDevices(pads) {
     for (let slot = 0; slot < 2; slot++) {
       const select = $(`device${slot}`); select.replaceChildren();
@@ -138,7 +141,7 @@
       for (const [value, text] of options) { const o = document.createElement('option'); o.value = value; o.textContent = text; select.append(o); }
       select.value = selections[slot];
     }
-    $('connection-help').textContent = pads.length ? `已识别 ${pads.length} 只手柄。可指定玩家设备，或保持自动分配；其他玩家仍可用键盘。` : '支持两只 Xbox 手柄，也可以用键盘一起玩。连接后按任意手柄按键。';
+    $('connection-help').textContent = pads.length ? `已识别 ${pads.length} 只手柄。可用手柄方向键 / 左摇杆 + A 键选模式开打；两人可各自指定手柄。` : '支持两只 Xbox 手柄，也可以用键盘一起玩。连接后按任意手柄按键。';
   }
   function assignPads(pads) {
     const reserved = new Set(selections.filter(s => s.startsWith('pad:')).map(s => Number(s.slice(4))));
@@ -159,33 +162,39 @@
     const lost = selectedPads.filter(p => p && !pads.some(next => next.index === p.index));
     assignPads(pads);
     if (signature !== padSignature) { padSignature = signature; rebuildDevices(pads); if (lost.length && screen === 'game' && !modalKind && ['playing', 'countdown'].includes(battle?.phase)) pauseMenu('手柄连接已中断。重新连接后按任意手柄键，或用对应玩家的键盘继续。'); }
-    connectedBefore = new Set(pads.map(p => p.index)); navCooldown = Math.max(0, navCooldown - dt);
+    connectedBefore = new Set(pads.map(p => p.index));
+    // 每只手柄独立导航，避免互相抢焦点。
+    for (const idx of padNav.keys()) if (!pads.some(p => p.index === idx)) padNav.delete(idx);
     for (const p of pads) {
       const prev = padPrevious.get(p.index) || Array(17).fill(false);
       const fresh = i => pressed(p, i) && !prev[i];
+      const nav = padNav.get(p.index) || (padNav.set(p.index, { cooldown: 0, focusIndex: 0 }), padNav.get(p.index));
+      nav.cooldown = Math.max(0, nav.cooldown - dt);
       if (fresh(9)) { if (!modalKind && screen === 'game') pauseMenu(); else if (modalKind === 'pause' || modalKind === 'rules') hideModal(); }
       else if (screen === 'menu' || modalKind) {
         const buttons = modalKind ? [...$('modal-actions').querySelectorAll('button'), ...$('modal-content').querySelectorAll('button')] : [...document.querySelectorAll('.mode-card'), $('device0'), $('device1'), $('sound'), $('fullscreen')];
-        const delta = pressed(p, 13) || pressed(p, 15) || p.axes[1] > .6 || p.axes[0] > .6 ? 1 : pressed(p, 12) || pressed(p, 14) || p.axes[1] < -.6 || p.axes[0] < -.6 ? -1 : 0;
-        if (delta && navCooldown <= 0) { const active = buttons.indexOf(document.activeElement); focusIndex = ((active < 0 ? focusIndex : active) + delta + buttons.length) % buttons.length; buttons[focusIndex]?.focus(); navCooldown = .22; }
-        if (fresh(0)) {
-          const active = buttons.includes(document.activeElement) ? document.activeElement : buttons[0];
+        const delta = pressed(p, BTN.DOWN) || pressed(p, BTN.RIGHT) || p.axes[1] > .6 || p.axes[0] > .6 ? 1 : pressed(p, BTN.UP) || pressed(p, BTN.LEFT) || p.axes[1] < -.6 || p.axes[0] < -.6 ? -1 : 0;
+        if (delta && nav.cooldown <= 0) { const active = buttons.indexOf(document.activeElement); nav.focusIndex = ((active < 0 ? nav.focusIndex : active) + delta + buttons.length) % buttons.length; buttons[nav.focusIndex]?.focus(); nav.cooldown = .22; }
+        if (fresh(BTN.A)) {
+          const active = buttons.includes(document.activeElement) ? document.activeElement : buttons[nav.focusIndex] || buttons[0];
           if (active?.tagName === 'SELECT') { const index = (active.selectedIndex + 1) % active.options.length; active.selectedIndex = index; active.dispatchEvent(new Event('change')); }
           else active?.click();
         }
-        if (fresh(1)) { if (modalKind === 'end' || modalKind === 'round') goMenu(); else escape(); }
+        if (fresh(BTN.B)) { if (modalKind === 'end' || modalKind === 'round') goMenu(); else escape(); }
       }
       padPrevious.set(p.index, p.buttons.map(b => b.pressed));
     }
     for (const index of padPrevious.keys()) if (!pads.some(p => p.index === index)) padPrevious.delete(index);
   }
+  // 标准映射按钮索引（W3C Gamepad "standard" mapping）
+  const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, BACK: 8, START: 9, L3: 10, R3: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
   function readInput(slot) {
     const m = keymaps[slot], down = name => m[name].some(code => keys.has(code)), pad = selectedPads[slot];
     // Keyboard is always a fallback, including when a selected gamepad disconnects.
     let x = Number(down('right')) - Number(down('left')), y = Number(down('down')) - Number(down('up'));
-    if (pad) { const ax = pad.axes[0] || 0, ay = pad.axes[1] || 0, dead = v => Math.abs(v) < .22 ? 0 : Math.sign(v) * (Math.abs(v) - .22) / .78; x += dead(ax) + Number(pressed(pad, 15)) - Number(pressed(pad, 14)); y += dead(ay) + Number(pressed(pad, 13)) - Number(pressed(pad, 12)); }
+    if (pad) { const ax = pad.axes[0] || 0, ay = pad.axes[1] || 0, dead = v => Math.abs(v) < .22 ? 0 : Math.sign(v) * (Math.abs(v) - .22) / .78; x += dead(ax) + Number(pressed(pad, BTN.RIGHT)) - Number(pressed(pad, BTN.LEFT)); y += dead(ay) + Number(pressed(pad, BTN.DOWN)) - Number(pressed(pad, BTN.UP)); }
     const n = Math.hypot(x, y); if (n > 1) { x /= n; y /= n; }
-    return { x, y, attack: down('attack') || pressed(pad, 0), dash: down('dash') || pressed(pad, 1), skill: down('skill') || pressed(pad, 2), link: down('link') || pressed(pad, 3) };
+    return { x, y, attack: down('attack') || pressed(pad, BTN.A), dash: down('dash') || pressed(pad, BTN.B), skill: down('skill') || pressed(pad, BTN.X), link: down('link') || pressed(pad, BTN.Y) };
   }
   function updateHud() {
     if (!battle) return;

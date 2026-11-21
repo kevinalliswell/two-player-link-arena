@@ -9,9 +9,9 @@
  <main id="menu" class="menu">
   <section class="intro"><div><div class="eyebrow"><span>02 PLAYERS</span> 一台电脑 · 两个主角</div><h1>好搭档，<br>也能是<span>好对手。</span></h1><p>并肩破盾，或正面对决。选一种玩法，<br class="desktop-break">把默契交给下一场战斗。</p></div><div class="hero-art"><canvas id="poster" width="620" height="410" aria-label="青蓝色英雄与橙色怪兽在竞技场对峙的插画"></canvas><div class="art-label">LINK ESTABLISHED <span>100%</span></div><div class="art-caption">READY WHEN YOU ARE.</div></div></section>
   <section class="select-section"><div class="section-heading"><h2><span>01</span> 选择你的战场</h2><span>THREE WAYS TO PLAY</span></div><div class="mode-grid">
-   <button class="mode-card duel" data-mode="duel"><div class="card-top"><span class="mode-number">01 / VERSUS</span><span class="mode-badge">三局两胜</span></div><div class="card-symbol">↗<span>×</span>↙</div><h3>擂台对决</h3><p>闪避、蓄能、精准出击。<br>今天谁才是最强搭档？</p><div class="card-footer"><span>英雄 vs 英雄</span><strong>进入战场 ↗</strong></div></button>
-   <button class="mode-card coop" data-mode="coop"><div class="card-top"><span class="mode-number">02 / TOGETHER</span><span class="mode-badge">默契挑战</span></div><div class="card-symbol">◇<span>+</span>◇</div><h3>双星共振</h3><p>分头占点，同时破盾。<br>一起击败失控的巨兽。</p><div class="card-footer"><span>双英雄 vs 巨兽</span><strong>一起出发 ↗</strong></div></button>
-   <button class="mode-card kaiju" data-mode="kaiju"><div class="card-top"><span class="mode-number">03 / TITAN</span><span class="mode-badge">非对称战</span></div><div class="card-symbol">▴<span>vs</span>✦</div><h3>巨兽警报</h3><p>一人化身巨兽，一人守护城市。<br>力量与机动的终极较量。</p><div class="card-footer"><span>P1 怪兽 · P2 英雄</span><strong>即刻开战 ↗</strong></div></button>
+   <button class="mode-card duel" data-mode="duel" tabindex="0"><div class="card-top"><span class="mode-number">01 / VERSUS</span><span class="mode-badge">三局两胜</span></div><div class="card-symbol">↗<span>×</span>↙</div><h3>擂台对决</h3><p>闪避、蓄能、精准出击。<br>今天谁才是最强搭档？</p><div class="card-footer"><span>英雄 vs 英雄</span><strong>进入战场 ↗</strong></div></button>
+   <button class="mode-card coop" data-mode="coop" tabindex="0"><div class="card-top"><span class="mode-number">02 / TOGETHER</span><span class="mode-badge">默契挑战</span></div><div class="card-symbol">◇<span>+</span>◇</div><h3>双星共振</h3><p>分头占点，同时破盾。<br>一起击败失控的巨兽。</p><div class="card-footer"><span>双英雄 vs 巨兽</span><strong>一起出发 ↗</strong></div></button>
+   <button class="mode-card kaiju" data-mode="kaiju" tabindex="0"><div class="card-top"><span class="mode-number">03 / TITAN</span><span class="mode-badge">非对称战</span></div><div class="card-symbol">▴<span>vs</span>✦</div><h3>巨兽警报</h3><p>一人化身巨兽，一人守护城市。<br>力量与机动的终极较量。</p><div class="card-footer"><span>P1 怪兽 · P2 英雄</span><strong>即刻开战 ↗</strong></div></button>
   </div></section>
   <section class="connection"><div class="connection-title"><span class="device-icon">⌘</span><div><h2>搭档，准备就绪</h2><p id="connection-help">支持两只 Xbox 手柄，也可以用键盘一起玩。连接后按任意手柄按键。</p></div></div><div class="player-devices"><label><b class="p1">P1</b><select id="device0" aria-label="玩家一控制设备"><option value="auto">自动 / 键盘</option></select></label><label><b class="p2">P2</b><select id="device1" aria-label="玩家二控制设备"><option value="auto">自动 / 键盘</option></select></label></div><div class="keyboard-guide"><span><b class="p1">爸爸 / P1</b> <kbd>W A D Z</kbd> 移动 <kbd>1 2 3 4</kbd> 攻击 / 冲刺 / 技能 / 协作</span><span><b class="p2">你 / P2</b> <kbd>↑ ← ↓ →</kbd> 移动 <kbd>7 8 9 0</kbd> 攻击 / 冲刺 / 技能 / 模式动作</span><span class="pad-guide">手柄：左摇杆 / 方向键移动 · <b>A</b> 攻击 · <b>B</b> 冲刺 · <b>X</b> 技能 · <b>Y</b> 模式动作 · <b>☰</b> 暂停</span></div></section>
   <footer><span>为同屏而生。为默契而战。</span><span>无需联网 · 无需注册 · 键盘 / 双手柄</span></footer>
@@ -258,6 +258,7 @@
   let audioOn = false, audioContext = null, soundCooldown = 0, previousFocus = null;
   const keys = new Set(), selections = ['auto', 'auto'], selectedPads = [null, null], autoBindings = [null, null], padPrevious = new Map();
   let padSignature = '', connectedBefore = new Set(), navCooldown = 0, focusIndex = 0;
+  const padNav = new Map(); // index -> { cooldown, focusIndex } 每只手柄独立导航焦点
   const keymaps = [
     { left: ['KeyA'], right: ['KeyD'], up: ['KeyW'], down: ['KeyS', 'KeyZ'], attack: ['Digit1', 'Numpad1', 'KeyJ'], dash: ['Digit2', 'Numpad2', 'KeyK'], skill: ['Digit3', 'Numpad3', 'KeyL'], link: ['Digit4', 'Numpad4', 'KeyI'] },
     { left: ['ArrowLeft'], right: ['ArrowRight'], up: ['ArrowUp'], down: ['ArrowDown'], attack: ['Digit7', 'Numpad7', 'Digit1', 'Numpad1'], dash: ['Digit8', 'Numpad8', 'Digit2', 'Numpad2'], skill: ['Digit9', 'Numpad9', 'Digit3', 'Numpad3'], link: ['Digit0', 'Numpad0', 'Digit4', 'Numpad4'] }
@@ -362,6 +363,8 @@
   document.addEventListener('visibilitychange', () => { if (document.hidden && screen === 'game' && !modalKind) pauseMenu('页面已切到后台，战斗已暂停。'); });
   const getPads = () => { try { return Array.from(navigator.getGamepads?.() || []).filter(p => p?.connected); } catch (_) { return []; } };
   const pressed = (pad, i) => !!pad?.buttons[i]?.pressed;
+  // 标准映射按钮索引：0=A 1=B 2=X 3=Y 4=LB 5=RB 6=LT 7=RT 8=Back 9=Start 10=L3 11=R3 12=上 13=下 14=左 15=右
+  const isStandard = pad => pad?.mapping === 'standard';
   function rebuildDevices(pads) {
     for (let slot = 0; slot < 2; slot++) {
       const select = $(`device${slot}`); select.replaceChildren();
@@ -370,7 +373,7 @@
       for (const [value, text] of options) { const o = document.createElement('option'); o.value = value; o.textContent = text; select.append(o); }
       select.value = selections[slot];
     }
-    $('connection-help').textContent = pads.length ? `已识别 ${pads.length} 只手柄。可指定玩家设备，或保持自动分配；其他玩家仍可用键盘。` : '支持两只 Xbox 手柄，也可以用键盘一起玩。连接后按任意手柄按键。';
+    $('connection-help').textContent = pads.length ? `已识别 ${pads.length} 只手柄。可用手柄方向键 / 左摇杆 + A 键选模式开打；两人可各自指定手柄。` : '支持两只 Xbox 手柄，也可以用键盘一起玩。连接后按任意手柄按键。';
   }
   function assignPads(pads) {
     const reserved = new Set(selections.filter(s => s.startsWith('pad:')).map(s => Number(s.slice(4))));
@@ -391,33 +394,39 @@
     const lost = selectedPads.filter(p => p && !pads.some(next => next.index === p.index));
     assignPads(pads);
     if (signature !== padSignature) { padSignature = signature; rebuildDevices(pads); if (lost.length && screen === 'game' && !modalKind && ['playing', 'countdown'].includes(battle?.phase)) pauseMenu('手柄连接已中断。重新连接后按任意手柄键，或用对应玩家的键盘继续。'); }
-    connectedBefore = new Set(pads.map(p => p.index)); navCooldown = Math.max(0, navCooldown - dt);
+    connectedBefore = new Set(pads.map(p => p.index));
+    // 每只手柄独立导航，避免互相抢焦点。
+    for (const idx of padNav.keys()) if (!pads.some(p => p.index === idx)) padNav.delete(idx);
     for (const p of pads) {
       const prev = padPrevious.get(p.index) || Array(17).fill(false);
       const fresh = i => pressed(p, i) && !prev[i];
+      const nav = padNav.get(p.index) || (padNav.set(p.index, { cooldown: 0, focusIndex: 0 }), padNav.get(p.index));
+      nav.cooldown = Math.max(0, nav.cooldown - dt);
       if (fresh(9)) { if (!modalKind && screen === 'game') pauseMenu(); else if (modalKind === 'pause' || modalKind === 'rules') hideModal(); }
       else if (screen === 'menu' || modalKind) {
         const buttons = modalKind ? [...$('modal-actions').querySelectorAll('button'), ...$('modal-content').querySelectorAll('button')] : [...document.querySelectorAll('.mode-card'), $('device0'), $('device1'), $('sound'), $('fullscreen')];
-        const delta = pressed(p, 13) || pressed(p, 15) || p.axes[1] > .6 || p.axes[0] > .6 ? 1 : pressed(p, 12) || pressed(p, 14) || p.axes[1] < -.6 || p.axes[0] < -.6 ? -1 : 0;
-        if (delta && navCooldown <= 0) { const active = buttons.indexOf(document.activeElement); focusIndex = ((active < 0 ? focusIndex : active) + delta + buttons.length) % buttons.length; buttons[focusIndex]?.focus(); navCooldown = .22; }
-        if (fresh(0)) {
-          const active = buttons.includes(document.activeElement) ? document.activeElement : buttons[0];
+        const delta = pressed(p, BTN.DOWN) || pressed(p, BTN.RIGHT) || p.axes[1] > .6 || p.axes[0] > .6 ? 1 : pressed(p, BTN.UP) || pressed(p, BTN.LEFT) || p.axes[1] < -.6 || p.axes[0] < -.6 ? -1 : 0;
+        if (delta && nav.cooldown <= 0) { const active = buttons.indexOf(document.activeElement); nav.focusIndex = ((active < 0 ? nav.focusIndex : active) + delta + buttons.length) % buttons.length; buttons[nav.focusIndex]?.focus(); nav.cooldown = .22; }
+        if (fresh(BTN.A)) {
+          const active = buttons.includes(document.activeElement) ? document.activeElement : buttons[nav.focusIndex] || buttons[0];
           if (active?.tagName === 'SELECT') { const index = (active.selectedIndex + 1) % active.options.length; active.selectedIndex = index; active.dispatchEvent(new Event('change')); }
           else active?.click();
         }
-        if (fresh(1)) { if (modalKind === 'end' || modalKind === 'round') goMenu(); else escape(); }
+        if (fresh(BTN.B)) { if (modalKind === 'end' || modalKind === 'round') goMenu(); else escape(); }
       }
       padPrevious.set(p.index, p.buttons.map(b => b.pressed));
     }
     for (const index of padPrevious.keys()) if (!pads.some(p => p.index === index)) padPrevious.delete(index);
   }
+  // 标准映射按钮索引（W3C Gamepad "standard" mapping）
+  const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, BACK: 8, START: 9, L3: 10, R3: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
   function readInput(slot) {
     const m = keymaps[slot], down = name => m[name].some(code => keys.has(code)), pad = selectedPads[slot];
     // Keyboard is always a fallback, including when a selected gamepad disconnects.
     let x = Number(down('right')) - Number(down('left')), y = Number(down('down')) - Number(down('up'));
-    if (pad) { const ax = pad.axes[0] || 0, ay = pad.axes[1] || 0, dead = v => Math.abs(v) < .22 ? 0 : Math.sign(v) * (Math.abs(v) - .22) / .78; x += dead(ax) + Number(pressed(pad, 15)) - Number(pressed(pad, 14)); y += dead(ay) + Number(pressed(pad, 13)) - Number(pressed(pad, 12)); }
+    if (pad) { const ax = pad.axes[0] || 0, ay = pad.axes[1] || 0, dead = v => Math.abs(v) < .22 ? 0 : Math.sign(v) * (Math.abs(v) - .22) / .78; x += dead(ax) + Number(pressed(pad, BTN.RIGHT)) - Number(pressed(pad, BTN.LEFT)); y += dead(ay) + Number(pressed(pad, BTN.DOWN)) - Number(pressed(pad, BTN.UP)); }
     const n = Math.hypot(x, y); if (n > 1) { x /= n; y /= n; }
-    return { x, y, attack: down('attack') || pressed(pad, 0), dash: down('dash') || pressed(pad, 1), skill: down('skill') || pressed(pad, 2), link: down('link') || pressed(pad, 3) };
+    return { x, y, attack: down('attack') || pressed(pad, BTN.A), dash: down('dash') || pressed(pad, BTN.B), skill: down('skill') || pressed(pad, BTN.X), link: down('link') || pressed(pad, BTN.Y) };
   }
   function updateHud() {
     if (!battle) return;

@@ -4,6 +4,8 @@
  .ultimate-track{height:5px;margin-top:5px;background:#0e1c24;border:1px solid #ffffff17;border-radius:3px;overflow:hidden;box-shadow:inset 0 0 0 1px #0003}.ultimate-track i{display:block;width:0;height:100%;background:linear-gradient(90deg,#d9c68e,#fff2a7);transition:width .14s}.ultimate-track.ready{box-shadow:0 0 12px #ffe08a;border-color:#ffe08a}.ultimate-track.ready i{background:#ffe08a;animation:pulse-ultimate .7s ease-in-out infinite alternate}@keyframes pulse-ultimate{to{filter:brightness(1.7)}}
 
 .adventure{--accent:#b99cff}.mode-grid{grid-template-columns:repeat(4,1fr)}@media(max-width:1100px){.mode-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:620px){.mode-grid{grid-template-columns:1fr}}
+
+.inventory-list{display:grid;gap:8px}.inventory-item{display:flex;justify-content:space-between;gap:12px;padding:12px 14px;background:#10232c;border:1px solid #ffffff12;border-radius:8px}.inventory-item b{color:#ffe08a}.inventory-item span{color:#91aab6;font-size:11px}
 </style></head>
 <body>
 <div class="shell">
@@ -18,7 +20,7 @@
   <section class="connection"><div class="connection-title"><span class="device-icon">⌘</span><div><h2>搭档，准备就绪</h2><p id="connection-help">支持两只 Xbox 手柄，也可以用键盘一起玩。连接后按任意手柄按键。</p></div></div><div class="player-devices"><label><b class="p1">P1</b><select id="device0" aria-label="玩家一控制设备"><option value="auto">自动 / 键盘</option></select></label><label><b class="p2">P2</b><select id="device1" aria-label="玩家二控制设备"><option value="auto">自动 / 键盘</option></select></label></div><div class="keyboard-guide"><span><b class="p1">爸爸 / P1</b> <kbd>W A D Z</kbd> 移动 <kbd>1 2 3 4</kbd> 攻击 / 冲刺 / 技能 / 协作</span><span><b class="p2">你 / P2</b> <kbd>↑ ← ↓ →</kbd> 移动 <kbd>7 8 9 0</kbd> 攻击 / 冲刺 / 技能 / 模式动作</span><span class="pad-guide">手柄：左摇杆 / 方向键移动 · <b>A</b> 攻击 · <b>B</b> 冲刺 · <b>X</b> 技能 · <b>Y</b> 模式动作 · <b>☰</b> 暂停</span></div></section>
   <footer><span>为同屏而生。为默契而战。</span><span>无需联网 · 无需注册 · 键盘 / 双手柄</span></footer>
  </main>
- <section id="arena-view" hidden><div class="match-top"><div><span id="mode-label" class="eyebrow"></span><h2 id="match-title"></h2></div><div class="match-buttons"><button id="rules-button" class="small-btn">规则 ?</button><button id="pause-button" class="small-btn">暂停 Esc</button></div></div><div class="arena-wrap"><canvas id="game" width="1280" height="720" tabindex="0" aria-label="双人竞技场，键盘与手柄可操作"></canvas><div class="arena-hud"><div class="fighter-panel cyan"><div><b id="name0">P1</b><span id="hp0-text"></span></div><div class="health-track"><i id="hp0"></i></div><div class="ultimate-track"><i id="ult0"></i></div><small id="combat0"></small><small id="cd0"></small></div><div class="match-clock"><strong id="timer">75</strong><span id="round-label"></span></div><div class="fighter-panel orange"><div><b id="name1">P2</b><span id="hp1-text"></span></div><div class="health-track"><i id="hp1"></i></div><div class="ultimate-track"><i id="ult1"></i></div><small id="combat1"></small><small id="cd1"></small></div></div><div id="objective" class="objective"></div><div id="toast" class="toast" role="status" aria-live="polite"></div><div class="device-strip"><span id="live-device0"></span><span id="live-device1"></span></div></div><div class="battle-guide"><span><b class="p1">爸爸 / P1</b> W A D Z + 1 / 2 / 3 / 4</span><span id="mode-hint"></span><span><b class="p2">你 / P2</b> 方向键 + 7 / 8 / 9 / 0</span></div></section>
+ <section id="arena-view" hidden><div class="match-top"><div><span id="mode-label" class="eyebrow"></span><h2 id="match-title"></h2></div><div class="match-buttons"><button id="inventory-button" class="small-btn">背包</button><button id="rules-button" class="small-btn">规则 ?</button><button id="pause-button" class="small-btn">暂停 Esc</button></div></div><div class="arena-wrap"><canvas id="game" width="1280" height="720" tabindex="0" aria-label="双人竞技场，键盘与手柄可操作"></canvas><div class="arena-hud"><div class="fighter-panel cyan"><div><b id="name0">P1</b><span id="hp0-text"></span></div><div class="health-track"><i id="hp0"></i></div><div class="ultimate-track"><i id="ult0"></i></div><small id="combat0"></small><small id="cd0"></small></div><div class="match-clock"><strong id="timer">75</strong><span id="round-label"></span></div><div class="fighter-panel orange"><div><b id="name1">P2</b><span id="hp1-text"></span></div><div class="health-track"><i id="hp1"></i></div><div class="ultimate-track"><i id="ult1"></i></div><small id="combat1"></small><small id="cd1"></small></div></div><div id="objective" class="objective"></div><div id="toast" class="toast" role="status" aria-live="polite"></div><div class="device-strip"><span id="live-device0"></span><span id="live-device1"></span></div></div><div class="battle-guide"><span><b class="p1">爸爸 / P1</b> W A D Z + 1 / 2 / 3 / 4</span><span id="mode-hint"></span><span><b class="p2">你 / P2</b> 方向键 + 7 / 8 / 9 / 0</span></div></section>
 </div>
 <div class="modal-backdrop" id="modal" hidden><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="eyebrow" id="modal-kicker">MISSION BRIEFING</div><h2 id="modal-title"></h2><div id="modal-content"></div><div id="modal-actions" class="modal-actions"></div><p class="modal-foot">手柄方向键选择 · A 确认 · B 返回 ｜ Esc 暂停</p></section></div>
 <script>/* Simulation has no browser dependencies; fixed-step inputs also make it testable. */
@@ -402,6 +404,16 @@
       { label: '继续战斗 →', run: hideModal }, { label: '重新开局', run: restartConfirm }, { label: '返回菜单', run: goMenu }
     ], 'pause');
   }
+  function inventoryModal() {
+    if (!battle || battle.mode !== 'adventure') { modal('背包只在普通探险开放', 'INVENTORY', '<p>进入普通探险后，击败小兵和小巨兽即可获得装备。</p>', [{ label: '知道了', run: hideModal }], 'inventory'); return; }
+    const items = battle.inventory.map((item, i) => `<div class="inventory-item"><b>${i + 1}. ${item.name}</b><span>售价 ${item.value} 金币 · Lv.${item.level}</span></div>`).join('') || '<p>背包还是空的，去击败小兵寻找装备吧。</p>';
+    const cost = battle.capacity * 20;
+    modal('探险背包', 'INVENTORY / 装备管理', `<div class="winner-banner"><strong>${battle.coins} 金币 · ${battle.inventory.length}/${battle.capacity} 格</strong><span>出售装备换金币，升级背包增加 1 格，最高 100 格。</span></div><div class="inventory-list">${items}</div>`, [
+      ...(battle.inventory.length ? [{ label: `出售最旧装备（+${battle.inventory[0].value}）`, run: () => { battle.sellItem(0); inventoryModal(); } }] : []),
+      { label: battle.capacity >= 100 ? '背包已满级' : `升级背包（${cost} 金币）`, run: () => { if (battle.upgradeBag()) inventoryModal(); else showToast(`金币不足，需要 ${cost} 金币`); } },
+      { label: '返回战斗', run: hideModal }
+    ], 'inventory');
+  }
   function restartConfirm() { modal('重新开始这场比赛？', 'RESTART MATCH', '<p>本场比分和战斗进度将重置。</p>', [{ label: '确认重新开局', run: () => start(currentMode) }, { label: '继续当前比赛', run: hideModal }], 'restart'); }
   function roundModal(winner) {
     beginResultLock();
@@ -423,7 +435,7 @@
   }
   document.querySelectorAll('[data-mode]').forEach(button => button.onclick = () => briefing(button.dataset.mode));
   $('brand').onclick = e => { e.preventDefault(); if (screen === 'game') pauseMenu(); };
-  $('pause-button').onclick = () => pauseMenu(); $('rules-button').onclick = () => briefing(currentMode, true);
+  $('pause-button').onclick = () => pauseMenu(); $('rules-button').onclick = () => briefing(currentMode, true); $('inventory-button').onclick = inventoryModal;
   function escape() {
     if (modalKind === 'pause' || modalKind === 'rules' || modalKind === 'restart') hideModal();
     else if (modalKind === 'briefing') hideModal();

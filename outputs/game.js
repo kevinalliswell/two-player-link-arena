@@ -132,6 +132,16 @@
       { label: '继续战斗 →', run: hideModal }, { label: '重新开局', run: restartConfirm }, { label: '返回菜单', run: goMenu }
     ], 'pause');
   }
+  function inventoryModal() {
+    if (!battle || battle.mode !== 'adventure') { modal('背包只在普通探险开放', 'INVENTORY', '<p>进入普通探险后，击败小兵和小巨兽即可获得装备。</p>', [{ label: '知道了', run: hideModal }], 'inventory'); return; }
+    const items = battle.inventory.map((item, i) => `<div class="inventory-item"><b>${i + 1}. ${item.name}</b><span>售价 ${item.value} 金币 · Lv.${item.level}</span></div>`).join('') || '<p>背包还是空的，去击败小兵寻找装备吧。</p>';
+    const cost = battle.capacity * 20;
+    modal('探险背包', 'INVENTORY / 装备管理', `<div class="winner-banner"><strong>${battle.coins} 金币 · ${battle.inventory.length}/${battle.capacity} 格</strong><span>出售装备换金币，升级背包增加 1 格，最高 100 格。</span></div><div class="inventory-list">${items}</div>`, [
+      ...(battle.inventory.length ? [{ label: `出售最旧装备（+${battle.inventory[0].value}）`, run: () => { battle.sellItem(0); inventoryModal(); } }] : []),
+      { label: battle.capacity >= 100 ? '背包已满级' : `升级背包（${cost} 金币）`, run: () => { if (battle.upgradeBag()) inventoryModal(); else showToast(`金币不足，需要 ${cost} 金币`); } },
+      { label: '返回战斗', run: hideModal }
+    ], 'inventory');
+  }
   function restartConfirm() { modal('重新开始这场比赛？', 'RESTART MATCH', '<p>本场比分和战斗进度将重置。</p>', [{ label: '确认重新开局', run: () => start(currentMode) }, { label: '继续当前比赛', run: hideModal }], 'restart'); }
   function roundModal(winner) {
     beginResultLock();
@@ -153,7 +163,7 @@
   }
   document.querySelectorAll('[data-mode]').forEach(button => button.onclick = () => briefing(button.dataset.mode));
   $('brand').onclick = e => { e.preventDefault(); if (screen === 'game') pauseMenu(); };
-  $('pause-button').onclick = () => pauseMenu(); $('rules-button').onclick = () => briefing(currentMode, true);
+  $('pause-button').onclick = () => pauseMenu(); $('rules-button').onclick = () => briefing(currentMode, true); $('inventory-button').onclick = inventoryModal;
   function escape() {
     if (modalKind === 'pause' || modalKind === 'rules' || modalKind === 'restart') hideModal();
     else if (modalKind === 'briefing') hideModal();

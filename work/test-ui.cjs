@@ -48,6 +48,18 @@ test('requested split keyboard controls move and trigger separate players',()=>{
   key('Digit3');frames(.08);key('Digit3','keyup');key('Digit9');frames(.08);key('Digit9','keyup');assert(snapshot().fighters[0].skillCd>0);assert(snapshot().fighters[1].skillCd>0);
   key('Escape');action('返回菜单');
 });
+test('number row and numpad actions control only their assigned player',()=>{
+  const fields=['attackCd','dashCd','skillCd','guard'];
+  for(const prefix of ['Digit','Numpad']) for(const slot of [0,1]) for(let actionIndex=0;actionIndex<4;actionIndex++){
+    cards[0].click();action('开始');frames(3.1);
+    const code=prefix+[[1,2,3,4],[7,8,9,0]][slot][actionIndex],field=fields[actionIndex];
+    key(code);frames(.05);
+    const fighters=snapshot().fighters;
+    assert(fighters[slot][field],`${code} must trigger P${slot+1} ${field}`);
+    assert(!fighters[1-slot][field],`${code} must not trigger P${2-slot} ${field}`);
+    key(code,'keyup');key('Escape');action('返回菜单');
+  }
+});
 test('dual Xbox mapping, exclusive assignment and deadzone',()=>{
   cards[0].click();action('开始');frames(3);
   pads=[pad(0),pad(1)];frames(.1);assert(snapshot().devices[0].includes('手柄 1'));assert(snapshot().devices[1].includes('手柄 2'));const x=snapshot().fighters[0].x;pads[0].axes[0]=.1;frames(.2);assert.equal(snapshot().fighters[0].x,x);pads[0].axes[0]=1;pads[1].axes[0]=-1;frames(.3);assert(snapshot().fighters[0].x>x);assert(snapshot().fighters[1].x<920);pads.forEach(p=>p.axes=[0,0]);
@@ -68,15 +80,15 @@ test('two gamepads use Y together to break the co-op shield',()=>{
   const assigned=snapshot().devices.map(d=>pads.find(p=>d.includes(`手柄 ${p.index+1}`)));
   assigned[0].axes[0]=-1;assigned[1].axes[0]=1;frames(.6);assigned.forEach(p=>{p.axes=[0,0];p.buttons[3].pressed=true;});frames(1.5);assert(!snapshot().boss.shield);assigned.forEach(p=>p.buttons[3].pressed=false);key('Escape');action('返回菜单');
 });
-test('real keyboard attacks reach round and final results; rematch resets scores',()=>{
-  cards[0].click();action('开始');frames(3);for(let round=0;round<2;round++){key('KeyD');key('KeyJ');frames(7);key('KeyD','keyup');key('KeyJ','keyup');assert.equal(snapshot().phase,round?'ended':'round');if(!round){action('下一回合');frames(3);}}
-  assert(el('modal-title').textContent.includes('P1'));action('再来一场');assert.equal(snapshot().scores[0],0);assert.equal(snapshot().phase,'countdown');key('Escape');action('返回菜单');
+test('result screen names the winner and blocks accidental continuation for ten seconds',()=>{
+  cards[0].click();action('开始');frames(3);for(let round=0;round<2;round++){key('KeyD');key('KeyJ');frames(7);key('KeyD','keyup');key('KeyJ','keyup');assert.equal(snapshot().phase,round?'ended':'round');assert(snapshot().resultLock>0);if(!round){action('下一回合');assert.equal(snapshot().phase,'round');frames(10.1);action('下一回合');frames(3);}}
+  assert(el('modal-title').textContent.includes('P1'));assert(el('modal-content').innerHTML.includes('胜者：'));assert(snapshot().resultLock>0);assert(el('modal-actions').children[0].disabled);action('再来一场');assert.equal(snapshot().phase,'ended');const pad0=pads[0];pad0.buttons[1].pressed=true;frames(.1);pad0.buttons[1].pressed=false;assert.equal(snapshot().phase,'ended');frames(10.1);action('再来一场');assert.equal(snapshot().scores[0],0);assert.equal(snapshot().phase,'countdown');key('Escape');action('返回菜单');
 });
 test('canvas renders menu poster and every battle mode without drawing errors',()=>{
   frames(.1);fs.writeFileSync('work/poster.png',el('poster').canvas.toBuffer('image/png'));
   for(const card of cards){card.click();action('开始');frames(4);fs.writeFileSync(`work/${card.dataset.mode}.png`,el('game').canvas.toBuffer('image/png'));key('Escape');action('返回菜单');}
 });
-console.log('\n10 controller / rendering checks passed (local DOM harness; not a browser or physical gamepad test).');
+console.log('\n11 controller / rendering checks passed (local DOM harness; not a browser or physical gamepad test).');
 
 
 

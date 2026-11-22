@@ -23,13 +23,15 @@
   };
   let screen = 'menu', battle = null, paused = false, modalKind = '', currentMode = 'duel', monsterSlot = 0;
   let last = 0, accumulator = 0, globalTime = 0, toastTime = 0, shake = 0, particles = [], popups = [];
+  const RESULT_HOLD_SECONDS = 10;
+  let resultLockUntil = 0, resultLockButtons = [];
   let audioOn = false, audioContext = null, soundCooldown = 0, previousFocus = null;
   const keys = new Set(), selections = ['auto', 'auto'], selectedPads = [null, null], autoBindings = [null, null], padPrevious = new Map();
   let padSignature = '', connectedBefore = new Set(), navCooldown = 0, focusIndex = 0;
   const padNav = new Map(); // index -> { cooldown, focusIndex } 每只手柄独立导航焦点
   const keymaps = [
     { left: ['KeyA'], right: ['KeyD'], up: ['KeyW'], down: ['KeyS', 'KeyZ'], attack: ['Digit1', 'Numpad1', 'KeyJ'], dash: ['Digit2', 'Numpad2', 'KeyK'], skill: ['Digit3', 'Numpad3', 'KeyL'], link: ['Digit4', 'Numpad4', 'KeyI'] },
-    { left: ['ArrowLeft'], right: ['ArrowRight'], up: ['ArrowUp'], down: ['ArrowDown'], attack: ['Digit7', 'Numpad7', 'Digit1', 'Numpad1'], dash: ['Digit8', 'Numpad8', 'Digit2', 'Numpad2'], skill: ['Digit9', 'Numpad9', 'Digit3', 'Numpad3'], link: ['Digit0', 'Numpad0', 'Digit4', 'Numpad4'] }
+    { left: ['ArrowLeft'], right: ['ArrowRight'], up: ['ArrowUp'], down: ['ArrowDown'], attack: ['Digit7', 'Numpad7'], dash: ['Digit8', 'Numpad8'], skill: ['Digit9', 'Numpad9'], link: ['Digit0', 'Numpad0'] }
   ];
   function tone(freq, duration = .09, type = 'sine', volume = .045, end = freq * .65) {
     if (!audioOn) return;
@@ -66,14 +68,38 @@
     if (e.type === 'end') endModal(e.winner, e.reason);
   }
   function burst(x, y, count, color) { for (let i = 0; i < count; i++) { const a = Math.random() * Math.PI * 2, speed = 35 + Math.random() * 190; particles.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, life: .25 + Math.random() * .4, color, r: 1 + Math.random() * 3 }); } }
+  function resultLockActive() { return resultLockUntil > globalTime + .0001; }
+  function clearResultLock() { resultLockUntil = 0; resultLockButtons = []; }
+  function beginResultLock() { resultLockUntil = globalTime + RESULT_HOLD_SECONDS; resultLockButtons = []; }
+  function updateResultLock() {
+    if (!resultLockButtons.length) return;
+    const remaining = Math.max(0, Math.ceil(resultLockUntil - globalTime));
+    for (const button of resultLockButtons) {
+      button.disabled = remaining > 0;
+      button.textContent = remaining > 0 ? `${button.dataset.baseLabel}（${remaining}秒后可用）` : button.dataset.baseLabel;
+    }
+    const countdown = $('result-countdown');
+    if (countdown) countdown.textContent = remaining ? `${remaining}` : '0';
+  }
   function modal(title, kicker, content, actions, kind) {
+    if (!['round', 'end'].includes(kind)) clearResultLock();
     previousFocus = document.activeElement; modalKind = kind; paused = true; keys.clear();
     $('modal-title').textContent = title; $('modal-kicker').textContent = kicker; $('modal-content').innerHTML = content;
     $('modal-actions').replaceChildren();
-    actions.forEach((a, i) => { const button = document.createElement('button'); button.textContent = a.label; if (!i) button.className = 'primary'; button.onclick = a.run; $('modal-actions').append(button); });
+    actions.forEach((a, i) => {
+      const button = document.createElement('button');
+      button.dataset.baseLabel = a.label;
+      button.textContent = a.label;
+      if (!i) button.className = 'primary';
+      const lockedResultAction = ['round', 'end'].includes(kind);
+      if (lockedResultAction) resultLockButtons.push(button);
+      button.onclick = () => { if (lockedResultAction && resultLockActive()) return; a.run(); };
+      $('modal-actions').append(button);
+    });
+    updateResultLock();
     $('modal').hidden = false; focusIndex = 0; $('modal-actions').querySelector('button')?.focus();
   }
-  function hideModal() { $('modal').hidden = true; modalKind = ''; paused = false; keys.clear(); if (screen === 'game') canvas.focus(); else previousFocus?.focus(); }
+  function hideModal() { clearResultLock(); $('modal').hidden = true; modalKind = ''; paused = false; keys.clear(); if (screen === 'game') canvas.focus(); else previousFocus?.focus(); }
   function controlsHTML(mode) {
     return `<div class="rule-controls">爸爸 / P1：W 上 · A 左 · D 右 · Z 下 · 1 攻击 · 2 冲刺 · 3 技能 · 4 ${mode === 'duel' ? '格挡' : mode === 'coop' ? '共振 / 救援' : '咆哮 / 光束'}<br>你 / P2：方向键移动 · 7 攻击 · 8 冲刺 · 9 技能 · 0 模式动作<br>手柄：左摇杆 / 方向键移动 · A 攻击 · B 冲刺 · X 技能 · Y 模式动作<br>连按近战打出四连击；命中积攒必杀能量，蓄满后按技能键释放五发扇形爆发。冲刺与技能须松开后再按。</div>`;
   }
@@ -87,12 +113,13 @@
     if ($('swap-role')) $('swap-role').onclick = () => { monsterSlot = 1 - monsterSlot; $('roles').textContent = `P${monsterSlot + 1} 怪兽 · P${2 - monsterSlot} 英雄`; };
   }
   function start(mode) {
+    if (resultLockActive()) return;
     currentMode = mode; screen = 'game'; particles = []; popups = []; shake = 0; toastTime = 0; $('toast').classList.remove('show');
     battle = new Battle(mode, { monsterSlot, onEvent: event }); $('menu').hidden = true; $('arena-view').hidden = false;
     $('mode-label').textContent = modes[mode].label; $('match-title').textContent = modes[mode].title; $('mode-hint').textContent = modes[mode].hint;
     hideModal(); accumulator = 0; window.scrollTo({ top: 0, behavior: 'instant' }); tone(440, .2, 'sine', .045, 880); updateHud();
   }
-  function goMenu() { screen = 'menu'; battle = null; $('menu').hidden = false; $('arena-view').hidden = true; hideModal(); document.querySelector('[data-mode]')?.focus(); }
+  function goMenu() { if (resultLockActive()) return; screen = 'menu'; battle = null; $('menu').hidden = false; $('arena-view').hidden = true; hideModal(); document.querySelector('[data-mode]')?.focus(); }
   function pauseMenu(note = '') {
     if (screen !== 'game' || !battle) return;
     modal('休息一下，搭档。', 'MATCH PAUSED / 已暂停', `<p>${note || '战斗时间已冻结。调整呼吸，下一次配合更漂亮。'}</p><div class="rule-controls">${deviceName(0)}<br>${deviceName(1)}<br>可在主菜单中更换控制设备。Esc / 手柄 ☰ 继续。</div>`, [
@@ -101,14 +128,19 @@
   }
   function restartConfirm() { modal('重新开始这场比赛？', 'RESTART MATCH', '<p>本场比分和战斗进度将重置。</p>', [{ label: '确认重新开局', run: () => start(currentMode) }, { label: '继续当前比赛', run: hideModal }], 'restart'); }
   function roundModal(winner) {
-    modal(winner < 0 ? '势均力敌 · 平局加赛' : `P${winner + 1} 赢下本回合`, `ROUND ${battle.round} / 回合结束`, `<div class="score-line">${battle.scores[0]} : ${battle.scores[1]}</div><p style="text-align:center">${winner < 0 ? '双方生命相同，本回合不计分。' : '率先拿到两分的玩家赢得比赛。'}<br>下一回合生命与技能全部恢复。</p>`, [
+    beginResultLock();
+    const winnerLabel = winner < 0 ? '本回合平局' : `胜者：P${winner + 1}（${winner === 0 ? '爸爸' : '你'}）`;
+    modal(winner < 0 ? '势均力敌 · 平局加赛' : `P${winner + 1}（${winner === 0 ? '爸爸' : '你'}）赢下本回合`, `ROUND ${battle.round} / 回合结束`, `<div class="winner-banner"><strong>${winnerLabel}</strong><span>${winner < 0 ? '双方生命相同，本回合不计分。' : '这一回合已经结束。'}</span></div><div class="score-line">${battle.scores[0]} : ${battle.scores[1]}</div><p style="text-align:center">率先拿到两分的玩家赢得比赛。<br>下一回合生命与技能全部恢复。</p><p class="result-lock-note">请先看清比分和胜者；<b><span id="result-countdown">10</span> 秒</b>后才能继续。</p>`, [
       { label: '下一回合 →', run: () => { battle.nextRound(); hideModal(); updateHud(); } }, { label: '返回菜单', run: goMenu }
     ], 'round');
   }
   function endModal(winner, reason) {
-    const won = winner === 'team', title = battle.mode === 'coop' ? (won ? '默契满分，挑战成功！' : '巨兽暂时占了上风') : `P${winner + 1} · ${battle.mode === 'kaiju' ? (winner === monsterSlot ? '巨兽' : '英雄') : '擂台'}胜利！`;
+    beginResultLock();
+    const won = winner === 'team';
+    const winnerLabel = battle.mode === 'coop' ? (won ? '胜者：P1 + P2（双人团队）' : '胜者：巨兽（电脑）') : `胜者：P${winner + 1}（${battle.mode === 'kaiju' ? (winner === monsterSlot ? '巨兽' : '英雄') : winner === 0 ? '爸爸' : '你'}）`;
+    const title = battle.mode === 'coop' ? (won ? '双人团队胜利！' : '巨兽胜利！') : `P${winner + 1}（${battle.mode === 'kaiju' ? (winner === monsterSlot ? '巨兽' : '英雄') : winner === 0 ? '爸爸' : '你'}）胜利！`;
     const stats = battle.stats;
-    modal(title, 'MATCH COMPLETE / 战斗结算', `<p>${reason}</p>${battle.mode === 'duel' ? `<div class="score-line">${battle.scores[0]} : ${battle.scores[1]}</div>` : ''}<div class="stat-grid"><div><b>${Math.round(battle.totalTime)}s</b><span>本场战斗用时</span></div><div><b>${Math.round(stats.damage[0])}</b><span>P1 总伤害</span></div><div><b>${Math.round(stats.damage[1])}</b><span>P2 总伤害</span></div></div>${battle.mode === 'coop' ? `<p>共振配合 ${stats.sync} 次 · 成功救援 ${stats.revives} 次</p>` : ''}`, [
+    modal(title, 'MATCH COMPLETE / 战斗结算', `<div class="winner-banner"><strong>${winnerLabel}</strong><span>${reason}</span></div>${battle.mode === 'duel' ? `<div class="score-line">${battle.scores[0]} : ${battle.scores[1]}</div>` : ''}<div class="stat-grid"><div><b>${Math.round(battle.totalTime)}s</b><span>本场战斗用时</span></div><div><b>${Math.round(stats.damage[0])}</b><span>P1 总伤害</span></div><div><b>${Math.round(stats.damage[1])}</b><span>P2 总伤害</span></div></div>${battle.mode === 'coop' ? `<p>共振配合 ${stats.sync} 次 · 成功救援 ${stats.revives} 次</p>` : ''}<p class="result-lock-note">比赛已暂停，先停留看清结果；<b><span id="result-countdown">10</span> 秒</b>内任何继续操作都不会生效。</p>`, [
       { label: '再来一场 →', run: () => start(currentMode) }, ...(battle.mode === 'kaiju' ? [{ label: '交换角色再战', run: () => { monsterSlot = 1 - monsterSlot; start(currentMode); } }] : []), { label: '返回菜单', run: goMenu }
     ], 'end'); tone(won || typeof winner === 'number' ? 480 : 180, .5, 'sine', .04, won || typeof winner === 'number' ? 900 : 80);
   }
@@ -180,7 +212,7 @@
           if (active?.tagName === 'SELECT') { const index = (active.selectedIndex + 1) % active.options.length; active.selectedIndex = index; active.dispatchEvent(new Event('change')); }
           else active?.click();
         }
-        if (fresh(BTN.B)) { if (modalKind === 'end' || modalKind === 'round') goMenu(); else escape(); }
+        if (fresh(BTN.B)) { if (modalKind === 'end' || modalKind === 'round') { if (!resultLockActive()) goMenu(); } else escape(); }
       }
       padPrevious.set(p.index, p.buttons.map(b => b.pressed));
     }
@@ -335,7 +367,7 @@
     text(c,'P1',197,124,11,'#99f0e6','center',800);text(c,'P2',439,100,11,'#ffc28c','center',800);
   }
   function loop(ms) {
-    const dt=Math.min(.05,last?(ms-last)/1000:0);last=ms;globalTime+=dt;soundCooldown-=dt;pollPads(dt);
+    const dt=Math.min(.05,last?(ms-last)/1000:0);last=ms;globalTime+=dt;soundCooldown-=dt;updateResultLock();pollPads(dt);
     if(screen==='game'&&battle){
       if(!paused){accumulator+=dt;const inputs=[readInput(0),readInput(1)];while(accumulator>=1/120){battle.step(1/120,inputs);accumulator-=1/120;if(paused)break;}toastTime-=dt;if(toastTime<=0)$('toast').classList.remove('show');for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.96;p.vy*=.96;p.life-=dt;}particles=particles.filter(p=>p.life>0);for(const p of popups){p.y-=dt*35;p.life-=dt;}popups=popups.filter(p=>p.life>0);shake=Math.max(0,shake-dt*35);}
       updateHud();drawBattle();
@@ -344,5 +376,5 @@
   }
   rebuildDevices(getPads());requestAnimationFrame(loop);
   // Read-only diagnostics for local QA, without gameplay shortcuts.
-  window.LinkArena=Object.freeze({snapshot:()=>battle?JSON.parse(JSON.stringify({mode:battle.mode,phase:battle.phase,time:battle.time,scores:battle.scores,fighters:battle.fighters,boss:battle.boss,generators:battle.generators,paused,devices:[deviceName(0),deviceName(1)]})):({screen,devices:[deviceName(0),deviceName(1)]})});
+  window.LinkArena=Object.freeze({snapshot:()=>battle?JSON.parse(JSON.stringify({mode:battle.mode,phase:battle.phase,time:battle.time,scores:battle.scores,fighters:battle.fighters,boss:battle.boss,generators:battle.generators,paused,resultLock:Math.max(0,resultLockUntil-globalTime),devices:[deviceName(0),deviceName(1)]})):({screen,devices:[deviceName(0),deviceName(1)]})});
 })();

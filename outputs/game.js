@@ -19,6 +19,11 @@
       '<b>怪兽 · 440 生命。</b>击倒英雄或摧毁全部三座能源设施即可获胜。攻击为重爪，冲刺为伤害冲撞，技能为投石，协作键为范围咆哮。',
       '<b>英雄 · 180 生命。</b>击败怪兽，或至少保住一座设施并存活 120 秒即可获胜。技能为追踪方向的能量弹，协作键为 700 范围内自动瞄准的高能光束。',
       '<b>不同体型，不同节奏。</b>怪兽速度慢但攻击范围大，咆哮可同时破坏附近设施；英雄用冲刺闪避，用远程技能牵制。'
+    ] },
+    adventure: { title: '普通探险', label: '04 / ADVENTURE', hint: '击败越来越多的小兵，收集装备，迎战逐波变强的小巨兽', rules: [
+      '<b>普通探险。</b>从少量小兵开始，每一波敌人越来越多；第 4 波、第 8 波会出现带技能的小巨兽。',
+      '<b>掉落装备。</b>击败小兵和巨兽会掉落装备，装备自动进入背包；初始 5 格，满了以后装备会留在战场上。',
+      '<b>装备经济。</b>装备可以出售换金币，花金币可以把背包扩容到 6、7、8 格，最高 100 格。'
     ] }
   };
   let screen = 'menu', battle = null, paused = false, modalKind = '', currentMode = 'duel', monsterSlot = 0;
@@ -60,6 +65,7 @@
       else tone(350 + e.count * 90, .08, 'sine', .035, 620 + e.count * 100);
     }
     if (e.type === 'burst') { burst(e.x, e.y, 42, '#f8df91'); shake = Math.max(shake, 10); showToast('必杀爆发！'); tone(780, .35, 'sawtooth', .06, 140); }
+    if (e.type === 'loot') showToast(`${e.item.name} 已入背包 · ${e.coins} 金币${e.full ? ' · 背包已满，去出售装备' : ''}`);
     if (e.type === 'dash') burst(e.x, e.y, 9, '#a5eae6');
     if (e.type === 'shot') tone(720, .1, 'triangle', .025, 260);
     if (e.type === 'swing') tone(e.monster ? 90 : 260, .08, 'sawtooth', .018);
@@ -137,10 +143,11 @@
   function endModal(winner, reason) {
     beginResultLock();
     const won = winner === 'team';
-    const winnerLabel = battle.mode === 'coop' ? (won ? '胜者：P1 + P2（双人团队）' : '胜者：巨兽（电脑）') : `胜者：P${winner + 1}（${battle.mode === 'kaiju' ? (winner === monsterSlot ? '巨兽' : '英雄') : winner === 0 ? '爸爸' : '你'}）`;
-    const title = battle.mode === 'coop' ? (won ? '双人团队胜利！' : '巨兽胜利！') : `P${winner + 1}（${battle.mode === 'kaiju' ? (winner === monsterSlot ? '巨兽' : '英雄') : winner === 0 ? '爸爸' : '你'}）胜利！`;
+    const adventure = battle.mode === 'adventure';
+    const winnerLabel = adventure ? (winner === 'team' ? '胜者：探险小队' : '探险失败：敌方部队') : battle.mode === 'coop' ? (won ? '胜者：P1 + P2（双人团队）' : '胜者：巨兽（电脑）') : `胜者：P${winner + 1}（${battle.mode === 'kaiju' ? (winner === monsterSlot ? '巨兽' : '英雄') : winner === 0 ? '爸爸' : '你'}）`;
+    const title = adventure ? (winner === 'team' ? '探险成功！' : '探险暂时失败') : battle.mode === 'coop' ? (won ? '双人团队胜利！' : '巨兽胜利！') : `P${winner + 1}（${battle.mode === 'kaiju' ? (winner === monsterSlot ? '巨兽' : '英雄') : winner === 0 ? '爸爸' : '你'}）胜利！`;
     const stats = battle.stats;
-    modal(title, 'MATCH COMPLETE / 战斗结算', `<div class="winner-banner"><strong>${winnerLabel}</strong><span>${reason}</span></div>${battle.mode === 'duel' ? `<div class="score-line">${battle.scores[0]} : ${battle.scores[1]}</div>` : ''}<div class="stat-grid"><div><b>${Math.round(battle.totalTime)}s</b><span>本场战斗用时</span></div><div><b>${Math.round(stats.damage[0])}</b><span>P1 总伤害</span></div><div><b>${Math.round(stats.damage[1])}</b><span>P2 总伤害</span></div></div>${battle.mode === 'coop' ? `<p>共振配合 ${stats.sync} 次 · 成功救援 ${stats.revives} 次</p>` : ''}<p class="result-lock-note">比赛已暂停，先停留看清结果；<b><span id="result-countdown">10</span> 秒</b>内任何继续操作都不会生效。</p>`, [
+    modal(title, 'MATCH COMPLETE / 战斗结算', `<div class="winner-banner"><strong>${winnerLabel}</strong><span>${reason}</span></div>${battle.mode === 'duel' ? `<div class="score-line">${battle.scores[0]} : ${battle.scores[1]}</div>` : ''}<div class="stat-grid"><div><b>${Math.round(battle.totalTime)}s</b><span>本场战斗用时</span></div><div><b>${Math.round(stats.damage[0])}</b><span>P1 总伤害</span></div><div><b>${Math.round(stats.damage[1])}</b><span>P2 总伤害</span></div></div>${adventure ? `<p>到达第 ${battle.wave} 波 · 背包 ${battle.inventory.length} / ${battle.capacity} · 金币 ${battle.coins}</p>` : ''}${battle.mode === 'coop' ? `<p>共振配合 ${stats.sync} 次 · 成功救援 ${stats.revives} 次</p>` : ''}<p class="result-lock-note">比赛已暂停，先停留看清结果；<b><span id="result-countdown">10</span> 秒</b>内任何继续操作都不会生效。</p>`, [
       { label: '再来一场 →', run: () => start(currentMode) }, ...(battle.mode === 'kaiju' ? [{ label: '交换角色再战', run: () => { monsterSlot = 1 - monsterSlot; start(currentMode); } }] : []), { label: '返回菜单', run: goMenu }
     ], 'end'); tone(won || typeof winner === 'number' ? 480 : 180, .5, 'sine', .04, won || typeof winner === 'number' ? 900 : 80);
   }
@@ -231,7 +238,7 @@
   function updateHud() {
     if (!battle) return;
     for (const p of battle.fighters) {
-      $(`name${p.id}`).textContent = `P${p.id + 1} · ${p.monster ? '暴走巨兽' : battle.mode === 'coop' ? '共振英雄' : '守护机甲'}`;
+      $(`name${p.id}`).textContent = `P${p.id + 1} · ${p.monster ? '暴走巨兽' : battle.mode === 'coop' ? '共振英雄' : battle.mode === 'adventure' ? '探险英雄' : '守护机甲'}`;
       $(`hp${p.id}`).style.width = `${p.hp / p.maxHp * 100}%`; $(`hp${p.id}-text`).textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
       const ult = $(`ult${p.id}`), combat = $(`combat${p.id}`);
       if (ult) { ult.style.width = `${p.ultimate}%`; ult.parentElement?.classList.toggle('ready', p.ultimate >= 100); }
@@ -241,8 +248,8 @@
       $(`live-device${p.id}`).textContent = deviceName(p.id);
     }
     $('timer').textContent = Math.ceil(battle.time).toString().padStart(2, '0'); $('timer').style.color = battle.time < 15 ? '#ff9c82' : '#e8edef';
-    $('round-label').textContent = battle.mode === 'duel' ? `${battle.scores[0]} — ${battle.scores[1]} / R${battle.round}` : battle.mode === 'coop' ? `PHASE ${battle.boss.phase}` : 'CITY DEFENSE';
-    $('objective').textContent = battle.mode === 'duel' ? '三局两胜 · 自动瞄准远程技能 · 协作键格挡' : battle.mode === 'coop' ? (battle.boss.shield ? '护盾在线 / 两人分站左右装置，按住协作键' : `护盾解除 / 输出窗口 ${battle.boss.exposed.toFixed(1)} 秒 · 同步技能追加伤害`) : `能源设施 ${battle.generators.filter(g => g.hp > 0).length} / 3 · P${monsterSlot + 1} 怪兽进攻 / P${2 - monsterSlot} 英雄防守`;
+    $('round-label').textContent = battle.mode === 'duel' ? `${battle.scores[0]} — ${battle.scores[1]} / R${battle.round}` : battle.mode === 'coop' ? `PHASE ${battle.boss.phase}` : battle.mode === 'adventure' ? `WAVE ${battle.wave}` : 'CITY DEFENSE';
+    $('objective').textContent = battle.mode === 'duel' ? '三局两胜 · 自动瞄准远程技能 · 协作键格挡' : battle.mode === 'coop' ? (battle.boss.shield ? '护盾在线 / 两人分站左右装置，按住协作键' : `护盾解除 / 输出窗口 ${battle.boss.exposed.toFixed(1)} 秒 · 同步技能追加伤害`) : battle.mode === 'adventure' ? `小兵 ${battle.enemies.filter(e => e.hp > 0 && !e.boss).length} · 背包 ${battle.inventory.length}/${battle.capacity} · 金币 ${battle.coins}` : `能源设施 ${battle.generators.filter(g => g.hp > 0).length} / 3 · P${monsterSlot + 1} 怪兽进攻 / P${2 - monsterSlot} 英雄防守`;
   }
   // Canvas artwork: all assets are drawn locally; no downloads, fonts or servers required.
   function rounded(c, x, y, w, h, r, fill, stroke, line = 1) { c.beginPath(); c.roundRect(x, y, w, h, r); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = line; c.stroke(); } }
@@ -337,6 +344,12 @@
     rounded(c,g.x-18,g.y-11,36,8,2,'#132e3a');rounded(c,g.x-15,g.y-9,30*g.hp/g.maxHp,4,1,'#a8e8c7');
     text(c,`能源 ${String.fromCharCode(65+i)} · ${Math.ceil(g.hp)}%`,g.x,g.y+47,10,'#cad9c5');
   }
+  function drawAdventureEnemy(c, e) {
+    if (e.hp <= 0) return;
+    if (e.boss) { monster(c, e, 1.02, true); text(c, `${e.skill} · 小巨兽`, e.x, e.y - 70, 11, '#ffc787', 'center', 800); }
+    else { monster(c, e, .42, false); text(c, '小兵', e.x, e.y - 35, 8, '#ffb58d', 'center', 700); }
+    c.fillStyle = '#101b20'; c.fillRect(e.x - 25, e.y - (e.boss ? 65 : 29), 50, 4); c.fillStyle = e.boss ? '#ffbd77' : '#ef8e6f'; c.fillRect(e.x - 25, e.y - (e.boss ? 65 : 29), 50 * e.hp / e.maxHp, 4);
+  }
   function drawBattle() {
     if (!battle) return; const c=ctx;c.save();if(shake>0)c.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);drawArena(c,globalTime);
     if(battle.mode==='coop') {
@@ -345,6 +358,7 @@
       if(b.shield && battle.syncCharge>0){rounded(c,540,588,200,6,3,'#142e38');rounded(c,540,588,200*battle.syncCharge/1.3,6,3,'#94f3d2');text(c,'共振同步中…',640,617,12,'#a1f8d7');}
     }
     if(battle.mode==='kaiju')battle.generators.forEach((g,i)=>drawGenerator(c,g,i));
+    if(battle.mode==='adventure') { for(const e of battle.enemies) drawAdventureEnemy(c,e); for(const item of battle.groundLoot) { ellipse(c,item.x,item.y,10,10,'#ffe08a33','#ffe08a',2); text(c,'装',item.x,item.y+4,9,'#ffe08a','center',800); } }
     for(const w of battle.warnings){const a=1-w.life/w.max;ellipse(c,w.x,w.y,w.r,w.r*.8,'#ff756a15','#ff9b7b',2);ellipse(c,w.x,w.y,w.r*a,w.r*.8*a,'#ff756a32');text(c,'!',w.x,w.y+6,28,'#ffd6a5','center',900);}
     const entities=[...battle.fighters];if(battle.boss)entities.push({...battle.boss,isBoss:true});entities.sort((a,b)=>a.y-b.y);
     for(const p of entities){if(p.isBoss)monster(c,p,1.25,true);else if(p.monster)monster(c,p,1.03);else hero(c,p);}
@@ -352,7 +366,7 @@
     for(const e of battle.effects){c.save();c.globalAlpha=e.life/e.max;if(e.kind==='beam'){c.strokeStyle='#d5fff2';c.shadowColor='#67e4e0';c.shadowBlur=18;c.lineWidth=10;c.beginPath();c.moveTo(e.x,e.y);c.lineTo(e.tx,e.ty);c.stroke();}else{const r=e.radius*(1-e.life/e.max);ellipse(c,e.x,e.y,r,r*.83,null,e.color,7*e.life/e.max);}c.restore();}
     for(const p of particles){c.globalAlpha=clamp(p.life*2,0,1);c.fillStyle=p.color;c.fillRect(p.x,p.y,p.r,p.r);}c.globalAlpha=1;
     for(const p of popups){c.globalAlpha=clamp(p.life*2,0,1);text(c,p.text,p.x,p.y,18,p.color,'center',800);}c.globalAlpha=1;
-    if(battle.phase==='countdown'){c.fillStyle='#10232b55';c.fillRect(85,205,1110,425);text(c,Math.ceil(battle.countdown).toString(),640,430,100,'#f1edd5','center',900);text(c,battle.mode==='coop'?'分站两端 · 同步破盾':battle.mode==='kaiju'?'城市防卫战 · 即将开始':'准备好了吗，搭档？',640,477,17,'#c0d6d8');}
+    if(battle.phase==='countdown'){c.fillStyle='#10232b55';c.fillRect(85,205,1110,425);text(c,Math.ceil(battle.countdown).toString(),640,430,100,'#f1edd5','center',900);text(c,battle.mode==='coop'?'分站两端 · 同步破盾':battle.mode==='kaiju'?'城市防卫战 · 即将开始':battle.mode==='adventure'?'探险开始 · 小兵会逐波增加':'准备好了吗，搭档？',640,477,17,'#c0d6d8');}
     c.restore();
   }
   function drawPoster(t) {
@@ -376,5 +390,5 @@
   }
   rebuildDevices(getPads());requestAnimationFrame(loop);
   // Read-only diagnostics for local QA, without gameplay shortcuts.
-  window.LinkArena=Object.freeze({snapshot:()=>battle?JSON.parse(JSON.stringify({mode:battle.mode,phase:battle.phase,time:battle.time,scores:battle.scores,fighters:battle.fighters,boss:battle.boss,generators:battle.generators,paused,resultLock:Math.max(0,resultLockUntil-globalTime),devices:[deviceName(0),deviceName(1)]})):({screen,devices:[deviceName(0),deviceName(1)]})});
+  window.LinkArena=Object.freeze({snapshot:()=>battle?JSON.parse(JSON.stringify({mode:battle.mode,phase:battle.phase,time:battle.time,scores:battle.scores,wave:battle.wave,inventory:battle.inventory,capacity:battle.capacity,coins:battle.coins,fighters:battle.fighters,boss:battle.boss,generators:battle.generators,paused,resultLock:Math.max(0,resultLockUntil-globalTime),devices:[deviceName(0),deviceName(1)]})):({screen,devices:[deviceName(0),deviceName(1)]})});
 })();

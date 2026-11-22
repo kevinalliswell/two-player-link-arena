@@ -14,27 +14,43 @@
     constructor(mode, options = {}) {
       this.mode = mode; this.monsterSlot = options.monsterSlot || 0; this.onEvent = options.onEvent || (() => {});
       this.random = options.random || Math.random; this.scores = [0, 0]; this.round = 1;
-      this.totalTime = 0; this.stats = { damage: [0, 0], sync: 0, revives: 0 }; this.setup();
+      this.totalTime = 0; this.stats = { damage: [0, 0], sync: 0, revives: 0 }; this.inventory = []; this.capacity = 5; this.coins = 0; this.setup();
     }
     emit(type, data = {}) { this.onEvent({ type, ...data }); }
     fighter(id, x, y, monster = false) {
-      const maxHp = monster ? 440 : this.mode === 'kaiju' ? 180 : this.mode === 'coop' ? 130 : 100;
+      const maxHp = monster ? 440 : this.mode === 'kaiju' ? 180 : this.mode === 'coop' ? 130 : this.mode === 'adventure' ? 150 : 100;
       return { id, x, y, monster, r: monster ? 40 : 24, hp: maxHp, maxHp, fx: id ? -1 : 1, fy: 0,
         attackCd: 0, dashCd: 0, skillCd: 0, linkCd: 0, attackTime: 0, dashTime: 0, invuln: 0,
         hurt: 0, energy: 100, ultimate: 0, combo: 0, comboTimer: 0, guard: false, down: false, revive: 0, walk: 0, dashHit: new Set(), prev: neutral() };
     }
     setup() {
-      this.phase = 'countdown'; this.countdown = 2.8; this.time = this.mode === 'duel' ? 75 : this.mode === 'coop' ? 150 : 120;
-      this.elapsed = 0; this.projectiles = []; this.warnings = []; this.effects = []; this.pylons = [{ x: 245, y: 420, charge: 0 }, { x: 1035, y: 420, charge: 0 }];
+      this.phase = 'countdown'; this.countdown = 2.8; this.time = this.mode === 'duel' ? 75 : this.mode === 'coop' ? 150 : this.mode === 'adventure' ? 180 : 120;
+      this.elapsed = 0; this.projectiles = []; this.warnings = []; this.effects = []; this.enemies = []; this.groundLoot = []; this.wave = this.mode === 'adventure' ? (this.wave || 1) : 0; this.waveTimer = 0; this.pylons = [{ x: 245, y: 420, charge: 0 }, { x: 1035, y: 420, charge: 0 }];
       this.fighters = [this.fighter(0, 360, 450, this.mode === 'kaiju' && this.monsterSlot === 0), this.fighter(1, 920, 450, this.mode === 'kaiju' && this.monsterSlot === 1)];
+      if (this.mode === 'adventure') this.spawnAdventureWave();
       if (this.mode === 'coop') { this.fighters[0].x = 390; this.fighters[1].x = 890; this.boss = { x: 640, y: 345, r: 56, hp: 680, maxHp: 680, shield: true, exposed: 0, phase: 1, cycle: 2.6, hurt: 0, anim: 0 }; }
       this.generators = [{ x: 290, y: 300, hp: 100, maxHp: 100 }, { x: 640, y: 555, hp: 100, maxHp: 100 }, { x: 990, y: 300, hp: 100, maxHp: 100 }];
       this.syncCharge = 0; this.syncShots = [-99, -99]; this.boss = this.mode === 'coop' ? this.boss : null;
     }
     nextRound() { if (this.phase !== 'round') return; this.round++; this.setup(); }
-    enemy(p) { return this.mode === 'coop' ? this.boss : this.fighters[1 - p.id]; }
+    enemy(p) { return this.mode === 'coop' ? this.boss : this.mode === 'adventure' ? this.enemies.filter(e => e.hp > 0).sort((a, b) => dist(p, a) - dist(p, b))[0] : this.fighters[1 - p.id]; }
+    spawnAdventureWave() {
+      const count = Math.min(18, 3 + this.wave * 2);
+      this.enemies = Array.from({ length: count }, (_, i) => ({ id: `minion-${this.wave}-${i}`, kind: 'adventure-enemy', x: 180 + (i % 6) * 175, y: 260 + Math.floor(i / 6) * 125, r: 20, hp: 38 + this.wave * 8, maxHp: 38 + this.wave * 8, speed: 75 + this.wave * 3, damage: 5 + this.wave, attackCd: 0, hurt: 0, defeated: false, monster: true, skill: false }));
+      if (this.wave % 4 === 0) this.enemies.push({ id: `beast-${this.wave}`, kind: 'adventure-enemy', boss: true, x: 640, y: 300, r: 52, hp: 260 + this.wave * 65, maxHp: 260 + this.wave * 65, speed: 90 + this.wave * 2, damage: 12 + this.wave * 2, attackCd: 1.2, hurt: 0, defeated: false, monster: true, skill: ['火焰冲击', '冰霜减速', '雷霆落点'][((this.wave / 4) - 1) % 3] });
+      this.emit('toast', { text: `第 ${this.wave} 波：${count} 个小兵${this.wave % 4 === 0 ? ' + 小巨兽' : ''}` });
+    }
+    defeatAdventureEnemy(enemy) {
+      enemy.defeated = true; this.coins += enemy.boss ? 80 + this.wave * 10 : 12 + this.wave * 2;
+      const item = { name: enemy.boss ? `巨兽核心 Lv.${Math.ceil(this.wave / 4)}` : ['锋利爪片', '能量碎片', '护甲零件'][Math.floor(this.random() * 3)], value: enemy.boss ? 65 : 15 + this.wave, level: Math.ceil(this.wave / 4) || 1 };
+      if (this.inventory.length < this.capacity) this.inventory.push(item); else this.groundLoot.push({ ...item, x: enemy.x, y: enemy.y });
+      this.emit('loot', { item, coins: this.coins, full: this.inventory.length >= this.capacity });
+    }
+    sellItem(index) { if (index < 0 || index >= this.inventory.length) return false; const item = this.inventory.splice(index, 1)[0]; this.coins += item.value; return true; }
+    upgradeBag() { const cost = this.capacity * 20; if (this.capacity >= 100 || this.coins < cost) return false; this.coins -= cost; this.capacity = Math.min(100, this.capacity + 1); return true; }
     aimTarget(p) {
       const enemy = this.enemy(p);
+      if (!enemy) return this.fighters[1 - p.id] || p;
       if (!p.monster) return enemy;
       const nearby = this.generators.filter(g => g.hp > 0).sort((a, b) => dist(p, a) - dist(p, b))[0];
       return nearby && dist(p, nearby) < dist(p, enemy) * .85 ? nearby : enemy;
@@ -46,23 +62,24 @@
       amount = Math.round(amount * 10) / 10;
       target.hp = Math.max(0, target.hp - amount); target.hurt = .18;
       if ('invuln' in target) target.invuln = .16;
-      if (source && source.id !== undefined) this.stats.damage[source.id] += amount;
+      if (source && typeof source.id === 'number') this.stats.damage[source.id] += amount;
       if (source && source.id !== undefined && 'ultimate' in source) source.ultimate = clamp(source.ultimate + amount * .72, 0, 100);
       if (source && knock && target.id !== undefined) { const v = unit(target.x - source.x, target.y - source.y); target.x = clamp(target.x + v.x * knock, BOUNDS.left + target.r, BOUNDS.right - target.r); target.y = clamp(target.y + v.y * knock, BOUNDS.top + target.r, BOUNDS.bottom - target.r); }
       this.emit('hit', { x: target.x, y: target.y, amount, heavy: amount > 20, color: target === this.boss && target.shield ? '#91a2b0' : '#f1ead2' });
       if (this.mode === 'coop' && target.id !== undefined && target.hp <= 0) { target.down = true; this.emit('toast', { text: `P${target.id + 1} 倒地！搭档靠近并按住协作键救援` }); }
+      if (this.mode === 'adventure' && target.kind === 'adventure-enemy' && target.hp <= 0 && !target.defeated) this.defeatAdventureEnemy(target);
       return true;
     }
     fire(p, spread = 0, damageScale = 1, kind = null) {
       const target = this.aimTarget(p);
       const v = unit(target.x - p.x, target.y - p.y), angle = Math.atan2(v.y, v.x) + spread, speed = p.monster ? 340 : 650;
-      this.projectiles.push({ x: p.x + v.x * (p.r + 10), y: p.y + v.y * (p.r + 10), vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, r: p.monster ? 17 : 7, damage: (p.monster ? 25 : this.mode === 'coop' ? 28 : 19) * damageScale, life: 2.6, owner: p.id, kind: kind || (p.monster ? 'rock' : 'bolt') });
+      this.projectiles.push({ x: p.x + v.x * (p.r + 10), y: p.y + v.y * (p.r + 10), vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, r: p.monster ? 17 : 7, damage: (p.monster ? 25 : this.mode === 'coop' ? 28 : this.mode === 'adventure' ? 24 : 19) * damageScale, life: 2.6, owner: p.id, kind: kind || (p.monster ? 'rock' : 'bolt') });
       this.emit('shot', { x: p.x, y: p.y, burst: kind === 'burst' });
     }
     attack(p) {
       p.attackCd = p.monster ? .7 : .43; p.attackTime = .25;
       const reach = p.monster ? 125 : 93;
-      const candidates = [this.enemy(p)];
+      const candidates = [this.enemy(p)].filter(Boolean);
       if (p.monster) candidates.push(...this.generators.filter(g => g.hp > 0));
       let landed = false, landedTarget = null;
       for (const target of candidates) {
@@ -91,6 +108,7 @@
       if (this.phase === 'ended' || this.phase === 'round') return;
       if (this.phase === 'countdown') { this.countdown -= dt; if (this.countdown <= 0) { this.phase = 'playing'; this.emit('toast', { text: '开战！' }); } return; }
       this.time = Math.max(0, this.time - dt); this.elapsed += dt; this.totalTime += dt;
+      if (this.mode === 'adventure') this.updateAdventure(dt);
       for (const p of this.fighters) {
         const input = inputs[p.id] || neutral();
         for (const key of ['attackCd', 'dashCd', 'skillCd', 'linkCd', 'attackTime', 'invuln', 'hurt', 'comboTimer']) p[key] = Math.max(0, p[key] - dt);
@@ -146,6 +164,20 @@
       this.effects = this.effects.filter(e => e.life > 0);
       this.checkEnd();
     }
+    updateAdventure(dt) {
+      const heroes = this.fighters.filter(p => !p.down);
+      for (const enemy of this.enemies.filter(e => e.hp > 0)) {
+        enemy.hurt = Math.max(0, enemy.hurt - dt); enemy.attackCd = Math.max(0, enemy.attackCd - dt);
+        const target = heroes.sort((a, b) => dist(enemy, a) - dist(enemy, b))[0]; if (!target) continue;
+        const v = unit(target.x - enemy.x, target.y - enemy.y);
+        if (dist(enemy, target) > enemy.r + target.r + 18) { enemy.x = clamp(enemy.x + v.x * enemy.speed * dt, BOUNDS.left + enemy.r, BOUNDS.right - enemy.r); enemy.y = clamp(enemy.y + v.y * enemy.speed * dt, BOUNDS.top + enemy.r, BOUNDS.bottom - enemy.r); }
+        else if (enemy.attackCd <= 0) { enemy.attackCd = enemy.boss ? 1.6 : 1.1; this.hit(target, enemy.damage, enemy, 8); this.emit(enemy.boss ? 'beastSkill' : 'swing', { x: enemy.x, y: enemy.y, skill: enemy.skill }); }
+        if (enemy.boss && enemy.attackCd < .5 && this.random() < dt * .8) { this.warnings.push({ x: target.x, y: target.y, r: 65, life: .65, max: .65, damage: enemy.damage + 8 }); }
+      }
+      for (const w of this.warnings) { w.life -= dt; if (w.life <= 0) { for (const p of this.fighters) if (!p.down && dist(p, w) < w.r + p.r * .5) this.hit(p, w.damage, this.enemies.find(e => e.boss) || this.enemies[0], 12); this.effects.push({ kind: 'ring', x: w.x, y: w.y, radius: w.r, life: .35, max: .35, color: '#ff776b' }); } }
+      this.warnings = this.warnings.filter(w => w.life > 0);
+      if (this.enemies.length && this.enemies.every(e => e.hp <= 0)) { this.wave++; this.waveTimer += dt; if (this.waveTimer > 1.1) { this.waveTimer = 0; this.spawnAdventureWave(); } }
+    }
     updateCoop(dt, inputs) {
       const boss = this.boss; boss.hurt = Math.max(0, boss.hurt - dt); boss.anim += dt; boss.cycle -= dt;
       boss.phase = boss.hp < boss.maxHp * .32 ? 3 : boss.hp < boss.maxHp * .67 ? 2 : 1;
@@ -179,6 +211,7 @@
         let targets;
         if (b.owner === 'boss') targets = this.fighters.filter(p => !p.down);
         else if (this.mode === 'coop') targets = [this.boss];
+        else if (this.mode === 'adventure') targets = this.enemies.filter(e => e.hp > 0);
         else targets = [this.fighters[1 - b.owner], ...(this.fighters[b.owner].monster ? this.generators.filter(g => g.hp > 0) : [])];
         for (const t of targets) if (dist(b, t) < b.r + (t.r || 25)) { this.hit(t, b.damage, b.owner === 'boss' ? this.boss : this.fighters[b.owner], 7); b.life = 0; break; }
         if (b.x < 50 || b.x > 1230 || b.y < 180 || b.y > 660) b.life = 0;
@@ -198,6 +231,9 @@
         if (this.boss.hp <= 0) this.finish('team', '双星共振，巨兽已被击败');
         else if (this.fighters.every(p => p.down)) this.finish('boss', '两位英雄均已倒地');
         else if (this.time <= 0) this.finish('boss', '挑战时间结束，巨兽仍在暴走');
+      } else if (this.mode === 'adventure') {
+        if (this.fighters.every(p => p.down)) this.finish('enemies', `第 ${this.wave} 波探险失败，小兵与巨兽击倒了两位英雄`);
+        else if (this.time <= 0) this.finish('team', `探险成功，坚持到第 ${this.wave} 波`);
       } else {
         const monster = this.fighters[this.monsterSlot], hero = this.fighters[1 - this.monsterSlot];
         if (monster.hp <= 0) this.finish(hero.id, '英雄击退巨兽，城市安全了');
